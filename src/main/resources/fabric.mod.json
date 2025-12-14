@@ -9,7 +9,7 @@
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"sources": "https://github.com/Zbyszeq/Zbyszeq-s-extra-datapack-items.git"
 	},
 	"license": "MIT",
 	"icon": "assets/xtra_datapack_items/icon.png",
