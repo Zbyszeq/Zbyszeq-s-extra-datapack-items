@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "xtra_datapack_items",
+	"version": "${version}",
+	"name": "Zbyszeq's extra datapack items",
+	"description": "This project grants you the ability to create a custom item at will!\nJust head to the config and add an item ID you'd like the game to register. Simple, isn't it?",
+	"authors": [
+		"Zbyszeq"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "MIT",
+	"icon": "assets/xtra_datapack_items/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.zbyszeq.ZbyszeqsExtraDatapackItems"
+		],
+		"client": [
+			"com.zbyszeq.ZbyszeqsExtraDatapackItemsClient"
+		]
+	},
+	"mixins": [
+		"xtra_datapack_items.mixins.json",
+		{
+			"config": "xtra_datapack_items.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.18.1",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
