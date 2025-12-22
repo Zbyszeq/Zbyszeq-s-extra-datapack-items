@@ -22,6 +22,7 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 
 public class ZbyszeqsExtraDatapackItems implements ModInitializer {
@@ -37,9 +38,16 @@ public class ZbyszeqsExtraDatapackItems implements ModInitializer {
     public void onInitialize() {
         Path path = FabricLoader.getInstance()
                 .getConfigDir()
-                .resolve("xtra_datapack_items.json");
+                .resolve("xtra_datapack_items");
 
         DummyItemConfig cfg = loadConfig(path);
+
+        if (cfg.items.isEmpty()) {
+            LOGGER.info(
+                    "No custom items loaded. Add .json files to {}",
+                    path
+            );
+        }
         int count = 0;
 
 
@@ -98,11 +106,21 @@ public class ZbyszeqsExtraDatapackItems implements ModInitializer {
                     }
                     case "food" -> {
                         int nutrition = ((Number) props.getOrDefault("nutrition", 0)).intValue();
-                        float saturation = ((Number) props.getOrDefault("saturation", 0)).floatValue();
-                        yield new Item(new Item.Properties().food(new FoodProperties.Builder()
-                                        .nutrition(nutrition)
-                                        .saturationModifier(saturation)
-                                        .build()));
+                        float saturation = ((Number) props.getOrDefault("saturation", 0f)).floatValue();
+                        boolean alwaysEdible = (Boolean) props.getOrDefault("always_edible", false);
+
+                        FoodProperties.Builder foodBuilder = new FoodProperties.Builder()
+                                .nutrition(nutrition)
+
+                                .saturationModifier(saturation);
+
+                        if (alwaysEdible) {
+                            foodBuilder.alwaysEdible(); // call only if true
+                        }
+
+                        Item.Properties itemProps = new Item.Properties().food(foodBuilder.build());
+
+                        yield new Item(itemProps);
                     }
                     case "bow" -> {
                         Item.Properties itemProps = applyUnbreakable(new Item.Properties(), props
@@ -197,21 +215,79 @@ public class ZbyszeqsExtraDatapackItems implements ModInitializer {
 
     /* ---------------- CONFIG ---------------- */
 
-    private static DummyItemConfig loadConfig(Path path) {
+    private static final Pattern NAMESPACE_PATTERN =
+            Pattern.compile("[a-z0-9_.-]+");
+
+    private static DummyItemConfig loadConfig(Path dir) {
+        DummyItemConfig combined = new DummyItemConfig();
+
         try {
-            if (Files.notExists(path)) {
-                DummyItemConfig def = DummyItemConfig.defaultConfig();
-                Files.createDirectories(path.getParent());
-                Files.writeString(path, GSON.toJson(def));
-                return def;
+            if (Files.notExists(dir)) {
+                Files.createDirectories(dir);
+                LOGGER.info("Created config directory {}", dir);
+                return combined;
             }
 
-            try (Reader r = Files.newBufferedReader(path)) {
-                return GSON.fromJson(r, DummyItemConfig.class);
+            try (var stream = Files.list(dir)) {
+                stream
+                        .filter(p -> p.toString().endsWith(".json"))
+                        .forEach(path -> {
+                            String fileName = path.getFileName().toString();
+                            String namespace = fileName.substring(0, fileName.length() - 5);
+
+                            if (!NAMESPACE_PATTERN.matcher(namespace).matches()) {
+                                throw new IllegalArgumentException(
+                                        "Invalid namespace '" + namespace + "' in file " + fileName
+                                );
+                            }
+
+                            if (namespace.equals("minecraft")) {
+                                throw new IllegalArgumentException(
+                                        "Namespace 'minecraft' is not allowed"
+                                );
+                            }
+
+                            try (Reader r = Files.newBufferedReader(path)) {
+                                DummyItemConfig cfg =
+                                        GSON.fromJson(r, DummyItemConfig.class);
+
+                                if (cfg == null || cfg.items == null) {
+                                    LOGGER.warn("Config {} is empty, skipping", fileName);
+                                    return;
+                                }
+
+                                for (ItemEntry entry : cfg.items) {
+                                    if (entry.id.contains(":")) {
+                                        throw new IllegalArgumentException(
+                                                "Item id must not contain ':' (" +
+                                                        entry.id + ") in " + fileName
+                                        );
+                                    }
+
+                                    ItemEntry copy = new ItemEntry();
+                                    copy.id = namespace + ":" + entry.id;
+                                    copy.type = entry.type;
+                                    copy.properties = entry.properties;
+
+                                    combined.items.add(copy);
+                                }
+
+                                LOGGER.info(
+                                        "Loaded {} items from namespace '{}'",
+                                        cfg.items.size(),
+                                        namespace
+                                );
+
+                            } catch (Exception e) {
+                                LOGGER.error("Failed to load config {}", fileName, e);
+                            }
+                        });
             }
+
         } catch (Exception e) {
-            LOGGER.error("Failed to load config", e);
-            return new DummyItemConfig();
+            LOGGER.error("Failed to load config directory {}", dir, e);
         }
+
+        return combined;
     }
 }
